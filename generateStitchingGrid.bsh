@@ -1,0 +1,71 @@
+import org.micromanager.navigation.PositionList;
+import org.micromanager.navigation.MultiStagePosition;
+
+acqName="test";
+long width = mmc.getImageWidth();
+long height = mmc.getImageHeight();
+long depth = mmc.getBytesPerPixel();
+
+String stageName = mmc.getXYStageDevice();
+String zName = mmc.getFocusDevice();
+
+positionList = gui.getPositionList();
+double minX = positionList.getPosition(0).getX();
+double maxX = positionList.getPosition(0).getX();
+double bottomY = positionList.getPosition(0).getY();
+double topY = positionList.getPosition(0).getY();
+
+for (int pos = 1; pos < positionList.getNumberOfPositions(); pos++){
+	maxX = Math.max(maxX, positionList.getPosition(pos).getX());
+	minX = Math.min(minX, positionList.getPosition(pos).getX());
+	bottomY = Math.max(bottomY, positionList.getPosition(pos).getY());
+	topY = Math.min(topY, positionList.getPosition(pos).getY());
+}
+
+
+//How many images per strip do we need?
+double xDistance = Math.abs(maxX - minX);
+xDistance = xDistance / 1000; //to convert to mm -  units are um
+double cameraXFieldOfView = mmc.getPixelSizeUm() * width / 1000; //also mm
+double cameraYFieldOfView = mmc.getPixelSizeUm() * height / 1000;
+double fieldOverlap = .2; //fraction by which each field should overlap
+double effectiveXFieldOfView = cameraXFieldOfView * (1 - fieldOverlap);
+double effectiveYFieldOfView = cameraYFieldOfView * (1 - fieldOverlap);
+int imagesPerStrip = Math.ceil(xDistance / effectiveXFieldOfView);
+gui.message("Images per strip: " + imagesPerStrip);
+
+gui.message("X step size:  " +effectiveXFieldOfView + " Y step size: " + effectiveYFieldOfView);
+
+double yStepSize = effectiveYFieldOfView * 1000; //in microns
+double xStepSize = effectiveXFieldOfView * 1000; //in microns
+int nStripsToAcquire = Math.ceil(Math.abs(bottomY-topY) / yStepSize);
+gui.message("Will acquire " + nStripsToAcquire + " strips.");
+
+
+//initial conditions
+double startX = minX;
+double startY = Math.min(bottomY, topY);
+double Z = mmc.getPosition(mmc.getFocusDevice());
+double direction = 1;
+//build new positionlist
+
+PositionList acquisitionGrid = new PositionList();
+
+for (int strip = 0; strip < nStripsToAcquire; strip++){
+	for (int xPos = 0; xPos < imagesPerStrip; xPos++){
+		double X = startX + direction * xPos * xStepSize;
+		acquisitionGrid.addPosition(new MultiStagePosition(stageName, X, startY, zName, Z));
+	}
+	//Update Y coordinate
+	startY = startY + yStepSize;
+	
+	//Acquire images by zig-zagging. Can't test equality, so just see which we're closest to.
+	if ((startX - minX)/(maxX - minX) < 0.5) {
+		startX = maxX;
+	direction = -1;
+	} else{
+		startX = minX;
+	direction = 1;
+	}
+}
+gui.setPositionList(acquisitionGrid);
