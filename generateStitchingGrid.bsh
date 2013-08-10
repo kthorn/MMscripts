@@ -31,14 +31,16 @@ double cameraYFieldOfView = mmc.getPixelSizeUm() * height / 1000;
 double fieldOverlap = .2; //fraction by which each field should overlap
 double effectiveXFieldOfView = cameraXFieldOfView * (1 - fieldOverlap);
 double effectiveYFieldOfView = cameraYFieldOfView * (1 - fieldOverlap);
-int imagesPerStrip = Math.ceil(xDistance / effectiveXFieldOfView);
-gui.message("Images per strip: " + imagesPerStrip);
+int imagesPerStrip = Math.ceil(xDistance / effectiveXFieldOfView) + 1; // +1 for fencepost problem
+gui.message("Images per strip: " + imagesPerStrip); 
 
 gui.message("X step size:  " +effectiveXFieldOfView + " Y step size: " + effectiveYFieldOfView);
 
 double yStepSize = effectiveYFieldOfView * 1000; //in microns
 double xStepSize = effectiveXFieldOfView * 1000; //in microns
-int nStripsToAcquire = Math.ceil(Math.abs(bottomY-topY) / yStepSize);
+//update maxX to cover an integer number of fields
+maxX = minX + imagesPerStrip * xStepSize;
+int nStripsToAcquire = Math.ceil(Math.abs(bottomY-topY) / yStepSize) + 1; //+1 for fencepost problem
 gui.message("Will acquire " + nStripsToAcquire + " strips.");
 
 
@@ -47,8 +49,8 @@ double startX = minX;
 double startY = Math.min(bottomY, topY);
 double Z = mmc.getPosition(mmc.getFocusDevice());
 double direction = 1;
-//build new positionlist
 
+//build new positionlist
 PositionList acquisitionGrid = new PositionList();
 
 for (int strip = 0; strip < nStripsToAcquire; strip++){
