@@ -39,7 +39,7 @@ gui.message("X step size:  " +effectiveXFieldOfView + " Y step size: " + effecti
 double yStepSize = effectiveYFieldOfView * 1000; //in microns
 double xStepSize = effectiveXFieldOfView * 1000; //in microns
 //update maxX to cover an integer number of fields
-maxX = minX + imagesPerStrip * xStepSize;
+maxX = minX + (imagesPerStrip-1) * xStepSize;
 int nStripsToAcquire = Math.ceil(Math.abs(bottomY-topY) / yStepSize) + 1; //+1 for fencepost problem
 gui.message("Will acquire " + nStripsToAcquire + " strips.");
 
