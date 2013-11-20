@@ -1,5 +1,5 @@
-import org.micromanager.navigation.PositionList;
-import org.micromanager.navigation.MultiStagePosition;
+import org.micromanager.api.PositionList;
+import org.micromanager.api.MultiStagePosition;
 
 acqName="test";
 long width = mmc.getImageWidth();
