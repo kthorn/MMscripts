@@ -1,0 +1,37 @@
+import javax.swing.filechooser.*;
+import java.io.File;
+
+//Command string to do image stitching; we will splice file info in here
+String commandPart1 = "type=[Positions from file] order=[Defined by image metadata] browse=";
+String commandPart2 = " multi_series_file=";
+String commandPart3 = " fusion_method=[Linear Blending] regression_threshold=0.30 max/avg_displacement_threshold=2.50 absolute_displacement_threshold=3.50 compute_overlap increase_overlap=10 invert_x subpixel_accuracy computation_parameters=[Save memory (but be slower)] image_output=[Fuse and display]";
+
+//pop up dialog to get starting directory
+JFileChooser j = new JFileChooser();
+j.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+j.setDialogTitle("Choose root directory containing acquired sections");
+int opt = j.showOpenDialog(j);
+File startDir = j.getSelectedFile();
+
+//loop over directories, and stitch each one.  Starting directory should be parent directory containing
+//folders of images, one folder per section
+File[] listOfFiles = startDir.listFiles();
+  if(listOfFiles!=null) {
+     for (int i = 0; i < listOfFiles.length; i++){
+      	if(listOfFiles[i].isDirectory()){
+      	  imgList = listOfFiles[i].listFiles();
+      	  fileName = imgList[0].toString();
+      	  print("Stitching " + fileName);
+      	  File outDir = new File(startDir, listOfFiles[i].getName() + "_fused.tif");
+      	  print("Output dir: " + outDir.toString());
+
+      	  String commandString = commandPart1 + fileName + commandPart2 + fileName + commandPart3;
+      	  IJ.run("Grid/Collection stitching", commandString);
+      	  //save and close
+      	  imp = IJ.getImage();
+      	  IJ.saveAs(imp, "Tiff", outDir.toString());
+      	  imp.close();
+      	}
+     }
+  }
+

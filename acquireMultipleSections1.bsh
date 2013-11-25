@@ -1,0 +1,156 @@
+import org.micromanager.api.PositionList;
+import org.micromanager.api.MultiStagePosition;
+import java.text.*;
+
+//Constants
+double FIELD_OVERLAP = .1; //fraction by which each field should overlap
+int MAX_N_POSITIONS = 100; //total number of positionlists we can store
+
+//Directory to save into - determined from the MDA window
+saveDir = acq.getRootName();
+
+//GUI Code
+f = new JFrame("Acquire Multiple Sections"); 
+cp = f.getContentPane(); 
+cp.setLayout(new GridBagLayout());
+GridBagConstraints cons = new GridBagConstraints();
+
+slidelabel = new JLabel("Slide Name: ");
+cons.gridx = 0;
+cons.gridy = 0;
+cons.anchor = cons.LINE_END;
+cp.add(slidelabel,cons); 
+slideName = new JTextField("Slide",12);
+cons.gridx = 1;
+cons.gridy = 0;
+cons.weightx = 1;
+cons.anchor = cons.LINE_START;
+cp.add(slideName,cons); 
+
+sectionLabel = new JLabel("Section Name: ");
+cons.gridx = 0;
+cons.gridy = 1;
+cons.anchor = cons.LINE_END;
+cp.add(sectionLabel,cons); 
+sectionName = new JTextField("Section",12);
+cons.gridx = 1;
+cons.gridy = 1;
+cons.weightx = 1;
+cons.anchor = cons.LINE_START;
+cp.add(sectionName,cons); 
+
+sectionButton = new JButton("Add Section");
+sectionButton.setActionCommand("addsection");
+sectionButton.addActionListener(this);
+cons.gridx = 0;
+cons.gridy = 2;
+cp.add(sectionButton,cons); 
+
+startButton = new JButton("Start Acquisition");
+startButton.setActionCommand("start");
+startButton.addActionListener(this);
+cons.gridx = 1;
+cons.gridy = 2;
+cp.add(startButton,cons); 
+
+f.pack(); 
+f.show();
+
+PositionList [] allPositions = new PositionList[MAX_N_POSITIONS]; //Storage for positions.
+int nPositions = 0; //Currently stored number of positions
+String [] fileNames = new String [MAX_N_POSITIONS];
+
+myThread = new Thread() {
+	public void run() {
+		gui.message("start acquisition");
+		for (int pos = 0; pos < nPositions; pos++){
+			gui.message("Position " + pos);
+			gui.setPositionList(allPositions[pos]);
+			gui.refreshGUI();
+			String acqName = gui.runAcquisition(fileNames[pos], saveDir);
+			gui.closeAcquisitionWindow(acqName);
+		}
+	}
+};
+
+void actionPerformed(ActionEvent e) { 
+	if (e.getActionCommand() == "addsection"){
+		PositionList newPL = generateStitchingGrid();
+		allPositions[nPositions] = newPL;
+		fileNames[nPositions] = slideName.getText() + "_" + sectionName.getText();
+		nPositions += 1;
+		gui.setPositionList(new PositionList()); //Clear position list
+	}
+	if (e.getActionCommand() == "start"){
+      gui.message("Starting Acquisition Thread");
+      myThread.start();
+	}
+}
+
+PositionList generateStitchingGrid() {
+	acqName="test";
+	long width = mmc.getImageWidth();
+	long height = mmc.getImageHeight();
+	long depth = mmc.getBytesPerPixel();
+
+	String stageName = mmc.getXYStageDevice();
+	String zName = mmc.getFocusDevice();
+
+	positionList = gui.getPositionList();
+	double minX = positionList.getPosition(0).getX();
+	double maxX = positionList.getPosition(0).getX();
+	double bottomY = positionList.getPosition(0).getY();
+	double topY = positionList.getPosition(0).getY();
+
+	for (int pos = 1; pos < positionList.getNumberOfPositions(); pos++){
+		maxX = Math.max(maxX, positionList.getPosition(pos).getX());
+		minX = Math.min(minX, positionList.getPosition(pos).getX());
+		bottomY = Math.max(bottomY, positionList.getPosition(pos).getY());
+		topY = Math.min(topY, positionList.getPosition(pos).getY());
+	}
+
+	//How many images per strip do we need?
+	double xDistance = Math.abs(maxX - minX);
+	xDistance = xDistance / 1000; //to convert to mm -  units are um
+	double cameraXFieldOfView = mmc.getPixelSizeUm() * width / 1000; //also mm
+	double cameraYFieldOfView = mmc.getPixelSizeUm() * height / 1000;
+	double effectiveXFieldOfView = cameraXFieldOfView * (1 - FIELD_OVERLAP);
+	double effectiveYFieldOfView = cameraYFieldOfView * (1 - FIELD_OVERLAP);
+	int imagesPerStrip = Math.ceil(xDistance / effectiveXFieldOfView) + 1; // +1 for fencepost problem
+	gui.message("Images per strip: " + imagesPerStrip); 
+	double yStepSize = effectiveYFieldOfView * 1000; //in microns
+	double xStepSize = effectiveXFieldOfView * 1000; //in microns
+	//update maxX to cover an integer number of fields
+	maxX = minX + (imagesPerStrip-1) * xStepSize;
+	int nStripsToAcquire = Math.ceil(Math.abs(bottomY-topY) / yStepSize) + 1; //+1 for fencepost problem
+	gui.message("Will acquire " + nStripsToAcquire + " strips.");
+
+	//initial conditions
+	double startX = minX;
+	double startY = Math.min(bottomY, topY);
+	double Z = mmc.getPosition(mmc.getFocusDevice());
+	double direction = 1;
+
+	//build new positionlist
+	PositionList acquisitionGrid = new PositionList();
+
+	for (int strip = 0; strip < nStripsToAcquire; strip++){
+		for (int xPos = 0; xPos < imagesPerStrip; xPos++){
+			double X = startX + direction * xPos * xStepSize;
+			acquisitionGrid.addPosition(new MultiStagePosition(stageName, X, startY, zName, Z));
+		}
+		//Update Y coordinate
+		startY = startY + yStepSize;
+		
+		//Acquire images by zig-zagging. Can't test equality, so just see which we're closest to.
+		if ((startX - minX)/(maxX - minX) < 0.5) {
+			startX = maxX;
+		direction = -1;
+		} else{
+			startX = minX;
+		direction = 1;
+		}
+	}
+	gui.setPositionList(acquisitionGrid);
+	return acquisitionGrid;
+}
