@@ -25,7 +25,8 @@ File[] listOfFiles = startDir.listFiles();
       	  File outDir = new File(startDir, listOfFiles[i].getName() + "_fused.tif");
       	  print("Output dir: " + outDir.toString());
 
-      	  String commandString = commandPart1 + fileName + commandPart2 + fileName + commandPart3;
+      	  String commandString = commandPart1 + "[" + fileName + "]" + commandPart2 + "[" + fileName + "]" + commandPart3;
+      	  print(commandString);
       	  IJ.run("Grid/Collection stitching", commandString);
       	  //save and close
       	  imp = IJ.getImage();
