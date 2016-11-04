@@ -1,5 +1,6 @@
 import javax.swing.filechooser.*;
 import java.io.File;
+import ij.IJ;
 
 //Command string to do image stitching; we will splice file info in here
 String commandPart1 = "type=[Positions from file] order=[Defined by image metadata] browse=";
