@@ -1,0 +1,65 @@
+//by Saul Kato
+//
+//Set up bidirectional (triangle-wave) Z-scanning using ring buffer of ASI Piezo stage
+//
+//based on ASIArrayScan.bsh by Kurt Thorn
+
+import org.micromanager.navigation.PositionList;
+import org.micromanager.navigation.MultiStagePosition;
+
+//Function to send arbitrary commands to ASI Stage
+String sendASICommand(String command){
+	mmc.setSerialPortCommand("COM3", command, "\r");
+	String asiReturn = mmc.getSerialPortAnswer("COM3", "\n");
+	asiReturn = asiReturn.replaceAll("\r", "\r\n"); //reformat multiline responses for display
+	return asiReturn;
+}
+
+
+print("Starting execution");
+//baseline Z position
+double zPositionBaseline = -250;
+
+//Z step size in tenths of microns
+double zStepSize= 25;
+
+//number of Z Levels
+int numZLevels=10;
+int totalZPositions = 2 * numZLevels;
+
+//create Z Position array (bi-directional sweep)
+
+zPositionArray = new double[totalZPositions];
+for (int i=0; i < numZLevels; i++) {
+	zPositionArray[i] = zPositionBaseline + i * zStepSize;
+	zPositionArray[totalZPositions - i -1] = zPositionArray[i];
+}
+
+//Clear the ring buffer, set to move Z only
+ans = sendASICommand("RM X=0 Y=4 Z=0");
+if (!ans.regionMatches(1,"A",0,1)){
+	error("Couldn't clear ring buffer");
+}
+
+
+
+//Load z positions into ASI controller ring buffer
+int zNum = 0;
+while (zNum < totalZPositions) {
+	String command = String.format("LD Z=%1$-4.1f", new Object[] {zPositionArray[zNum]});
+	print(command);
+	ans = sendASICommand(command);
+	print (ans);
+	zNum++;
+}
+
+ //set trigger mode to move to next ring buffer Z position upon TTL pulse
+ans = sendASICommand("TTL X=1");
+if (!ans.regionMatches(1,"A",0,1)){
+	error("Couldn't set TTL trigger mode.");
+}
+
+//Micro Manager dialog
+//gui.message("ASI ring buffer loaded and ready to run.");
+
+//end

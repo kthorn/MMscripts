@@ -1,0 +1,5 @@
+ //set trigger mode to move to next ring buffer Z position upon TTL pulse
+ans = sendASICommand("TTL X=0");
+if (!ans.regionMatches(1,"A",0,1)){
+	error("Couldn't set TTL trigger mode.");
+}
